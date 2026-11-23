@@ -8,12 +8,11 @@ version = "1.0.0"
 description = "MCP-сервер для эксплуатации PostgreSQL и MS SQL: размеры, блокировки, планы, удаление под контролем"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "legavaz" }]
 keywords = ["mcp", "postgresql", "mssql", "1c", "dba", "model-context-protocol"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Database",
 ]
