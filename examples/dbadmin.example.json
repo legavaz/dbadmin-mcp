@@ -1,0 +1,50 @@
+{
+  "_комментарий": "Скопируйте в dbadmin.json и подставьте свои значения. readonly=true — запись отклоняет сам PostgreSQL. Для удаления через MCP: readonly=false и allow_write=true.",
+  "connections": {
+    "analytics": {
+      "title": "Аналитика",
+      "driver": "postgres",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "dbname": "analytics",
+      "user": "readonly_user",
+      "password": "***",
+      "readonly": true
+    },
+    "onec_pg": {
+      "title": "1С на PostgreSQL",
+      "driver": "postgres",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "dbname": "base_name",
+      "user": "readonly_user",
+      "password": "***",
+      "readonly": true,
+      "onec_map": "onec_tables_base_name.json"
+    },
+    "onec_mssql": {
+      "title": "1С на MS SQL",
+      "driver": "mssql",
+      "host": "192.168.1.10",
+      "port": 1433,
+      "dbname": "base_name",
+      "user": "readonly_user",
+      "password": "***",
+      "odbc_driver": "ODBC Driver 18 for SQL Server",
+      "encrypt": false,
+      "readonly": true
+    },
+    "onec_write": {
+      "_комментарий": "Отдельное подключение для чистки. Только на копии!",
+      "title": "1С (запись)",
+      "driver": "postgres",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "dbname": "base_name",
+      "user": "writer_user",
+      "password": "***",
+      "readonly": false,
+      "allow_write": true
+    }
+  }
+}

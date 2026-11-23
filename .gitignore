@@ -1,0 +1,33 @@
+# Секреты и локальные артефакты
+dbadmin.json
+*.local.json
+.env
+
+# Журналы и кэш
+logs/
+*.log
+.cache/
+
+# Данные конкретной базы (карта 1С, дампы)
+data/
+onec_tables_*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Тесты и инструменты
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Редакторы
+.vscode/
+.idea/

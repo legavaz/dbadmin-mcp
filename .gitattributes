@@ -1,0 +1,9 @@
+# Нормализация переводов строк: в репозитории LF, в Windows-скриптах CRLF
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
