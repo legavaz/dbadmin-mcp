@@ -294,6 +294,85 @@ def _fmt_seconds(value) -> str:
 
 
 # ------------------------------- инструменты --------------------------------
+def tool_maintenance_report(args: dict) -> str:
+    """Обслуживание больших таблиц: autovacuum, статистика, bloat, долгие транзакции."""
+    name = args.get("connection") or "analytics"
+    limit = max(1, min(int(args.get("limit") or 10), 50))
+    conn, dialect, _ = connect(name)
+    try:
+        if dialect != "pg":
+            return "Отчёт обслуживания реализован для PostgreSQL."
+        cur = conn.cursor()
+        cur.execute("""
+            select c.relname,
+                   pg_size_pretty(pg_total_relation_size(c.oid)) as size,
+                   coalesce(s.n_dead_tup, 0) as dead,
+                   coalesce(s.n_live_tup, 0) as live,
+                   round(100.0 * coalesce(s.n_dead_tup, 0)
+                         / nullif(s.n_live_tup + coalesce(s.n_dead_tup, 0), 0), 2) as dead_pct,
+                   to_char(coalesce(s.last_vacuum, s.last_autovacuum), 'MM-DD HH24:MI') as last_av,
+                   to_char(coalesce(s.last_analyze, s.last_autoanalyze), 'MM-DD HH24:MI') as last_an,
+                   age(c.relfrozenxid) as xid_age,
+                   coalesce(array_to_string(c.reloptions, ' '), '—') as options
+            from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            left join pg_stat_user_tables s on s.relid = c.oid
+            where c.relkind = 'r'
+              and n.nspname not in ('pg_catalog', 'information_schema')
+              and pg_total_relation_size(c.oid) > 300 * 1024 * 1024
+            order by pg_total_relation_size(c.oid) desc
+            limit %s
+        """, (limit,))
+        tables = cur.fetchall()
+
+        cur.execute("""
+            select pid, round(extract(epoch from now() - xact_start))::bigint as sec,
+                   state, left(regexp_replace(query, '\\s+', ' ', 'g'), 90)
+            from pg_stat_activity
+            where xact_start is not null and now() - xact_start > interval '30 seconds'
+              and pid <> pg_backend_pid()
+            order by xact_start limit 5
+        """)
+        long_tx = cur.fetchall()
+
+        cur.execute("select count(*) from pg_extension where extname = 'pgstattuple'")
+        has_bloat = cur.fetchone()[0] > 0
+        bloat = []
+        if has_bloat:
+            for row in tables[:5]:
+                cur.execute(
+                    "select dead_tuple_percent, approx_free_percent "
+                    "from pgstattuple_approx(%s::regclass)", (f"public.{row[0]}",))
+                dead, free = cur.fetchone()
+                bloat.append((row[0], round(float(dead), 1), round(float(free), 1)))
+        cur.close()
+
+        out = [f"## Обслуживание · **{name}**", ""]
+        out.append(render_table(
+            ["таблица", "размер", "мёртвых", "живых", "мертв.%", "last vacuum", "last analyze", "xid", "autovacuum"],
+            [[r[0], r[1], r[2], r[3], r[4], r[5] or "—", r[6] or "—", r[7], r[8][:38]] for r in tables],
+            max_width=40))
+        out.append("")
+        out.append("**Долгие транзакции (>30 с):**")
+        out.append(render_table(["pid", "сек", "состояние", "запрос"],
+                                [list(r) for r in long_tx]) if long_tx else "_нет_")
+        if has_bloat:
+            out.append("")
+            out.append("**Bloat (pgstattuple_approx):**")
+            out.append(render_table(["таблица", "мёртвых %", "свободно %"],
+                                    [[b[0], b[1], b[2]] for b in bloat]))
+        else:
+            out.append("")
+            out.append("_Для оценки bloat: `create extension pgstattuple;`_")
+        if any(r[8] == "—" for r in tables):
+            out.append("")
+            out.append("⚠️ У части таблиц нет собственных autovacuum-настроек — "
+                       "для больших таблиц стоит задать пороги (scale_factor ≤ 0.02).")
+        return "\n".join(out)
+    finally:
+        conn.close()
+
+
 def tool_list_connections(args: dict) -> str:
     cfg = load_config()["connections"]
     if not cfg:
@@ -1158,6 +1237,17 @@ commit;
 # ------------------------------ описание MCP --------------------------------
 TOOLS = [
     {
+        "name": "maintenance_report",
+        "description": "Обслуживание больших таблиц: autovacuum-настройки, мёртвые строки, последние vacuum/analyze, возраст xid, bloat (pgstattuple) и долгие транзакции.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "connection": {"type": "string"},
+                "limit": {"type": "integer", "description": "сколько таблиц (по умолчанию 10)"},
+            },
+        },
+    },
+    {
         "name": "list_connections",
         "description": "Список настроенных подключений к базам (PostgreSQL / MS SQL), драйвер, база, режим доступа.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -1303,6 +1393,7 @@ TOOLS = [
 
 HANDLERS = {
     "list_connections": tool_list_connections,
+    "maintenance_report": tool_maintenance_report,
     "db_overview": tool_db_overview,
     "top_tables": tool_top_tables,
     "top_indexes": tool_top_indexes,

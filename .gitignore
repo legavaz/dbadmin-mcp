@@ -2,6 +2,10 @@
 dbadmin.json
 *.local.json
 .env
+secrets/
+.1c/
+secret*.json
+credentials*.json
 
 # Журналы и кэш
 logs/
